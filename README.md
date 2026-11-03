@@ -172,7 +172,7 @@ Add images to `docs/screenshots/` and link them here.
 |---|---|
 | Jayanth T D| Architecture & Socket Implementation: Designed the system architecture, built the raw UDP client, registry, and server scripts, and implemented the application-level messaging and error handling. |
 | Hrishik N Urs | Mininet & SDN Implementation: Designed the virtual Mininet topology, configured the remote POX controller, and verified host-to-switch connectivity and generic L2 flow rules. |
-| Jeevan M | _fill in_ Socket-SDN Integration & Testing: Integrated the application components across Mininet hosts, executed end-to-end tests (service found, service not found, server down), and verified dynamic UDP flow rule installation|
+| Jeevan M | Socket-SDN Integration & Testing: Integrated the application components across Mininet hosts, executed end-to-end tests (service found, service not found, server down), and verified dynamic UDP flow rule installation|
 
 ## Limitations and future work (Deliverable 2)
 
