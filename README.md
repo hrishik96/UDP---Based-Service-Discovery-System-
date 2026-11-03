@@ -154,14 +154,17 @@ Replace `H1PID`, `H2PID` and `H3PID` with the numbers from `dump`. They change o
 | Recovery | restart the server, then `video` | `SUCCESS` again |
 
 ## Screenshots
-
-Add images to `docs/screenshots/` and link them here.
-
+1. pingall.png (pingall result) :
 ![pingall result](docs/screenshots/pingall.png)
+2. flows-generic.png (Generic flow rules) :
 ![Generic flow rules](docs/screenshots/flows-generic.png)
+3. client-found.png (Client: service found) :
 ![UDP flow rules](docs/screenshots/flows-udp.png)
+4. flows-udp.png (UDP flow rules) :
 ![POX controller log](docs/screenshots/pox-log.png)
+5. pox-log.png (POX controller log) :
 ![Client: service found](docs/screenshots/client-found.png)
+6. client-errors.png (Client: not found and timeout) :
 ![Client: not found and timeout](docs/screenshots/client-errors.png)
 
 
