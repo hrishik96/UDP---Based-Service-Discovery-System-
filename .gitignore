@@ -1,2 +1,4 @@
+pox/
+.venv/
 __pycache__/
 *.pyc

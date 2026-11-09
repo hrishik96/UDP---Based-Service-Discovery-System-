@@ -177,8 +177,140 @@ Replace `H1PID`, `H2PID` and `H3PID` with the numbers from `dump`. They change o
 | Hrishik N Urs | Mininet & SDN Implementation: Designed the virtual Mininet topology, configured the remote POX controller, and verified host-to-switch connectivity and generic L2 flow rules. |
 | Jeevan M | Socket-SDN Integration & Testing: Integrated the application components across Mininet hosts, executed end-to-end tests (service found, service not found, server down), and verified dynamic UDP flow rule installation|
 
-## Limitations and future work (Deliverable 2)
+## Deliverable 2: Dynamic service discovery with SDN reaction
 
-- The controller currently installs service-specific forwarding rules and logs service events. Dynamic behaviour such as blocking, rerouting or load balancing is planned.
-- The registry does not yet remove a server that stops responding. Server health checking and de-registration are planned.
-- The registry handles one datagram at a time in a loop, so multiple clients are served one after another rather than concurrently.
+### What is new in D2
+
+- Servers advertise themselves: a heartbeat message every 3 seconds, so no manual registration is needed.
+- The registry removes a server that has been silent for 9 seconds, and reports REGISTERED and EXPIRED events.
+- A service can have several servers (primary and backup). The registry returns the first live one.
+- The client measures discovery latency, retries and rediscovers when a server does not respond.
+- The POX controller (service_sdn_v2) reads the registry events and changes the switch: it blocks a dead server and unblocks it when it returns.
+- Performance scripts compare the dynamic controller with the static D1 controller.
+
+### D2 architecture
+
+    POX controller (service_sdn_v2)
+      |  OpenFlow           reads /tmp/registry_events.log
+    s1 (Open vSwitch)
+ |      |      |      |
+h1     h2     h3     h4
+Registry Primary Backup Client
+10.0.0.1 10.0.0.2 10.0.0.3 10.0.0.4
+UDP 5000 UDP 5001 UDP 5002
+
+Topology: sudo mn --topo single,4 --controller remote
+
+### Message formats
+
+ADVERTISE|name|port server to registry, sent every 3 s (no reply)
+REGISTER|name|ip|port manual registration, reply REGISTERED
+DISCOVER|name client to registry
+SERVICE|name|ip|port registry reply when found
+NOT_FOUND|name registry reply when unknown
+INVALID_REQUEST registry reply to a malformed message
+REQUEST|name client to server
+SUCCESS|name|served by port N server reply
+
+
+Registry events written to /tmp/registry_events.log:
+REGISTERED|name|ip|port
+EXPIRED|name|ip|port
+
+
+### How the SDN reaction works
+
+1. The registry writes an EXPIRED event when a server stops advertising for 9 seconds.
+2. The controller polls the event file every second.
+3. On EXPIRED it deletes the dead server flows and installs a priority 300 DROP rule for that server IP and UDP port.
+4. On REGISTERED for a blocked server it removes the DROP rule (recovery).
+5. All other service traffic keeps being logged and forwarded with exact-match priority flows.
+
+This is blocking and recovery. It is not rerouting: the switch drops traffic to the dead server, and the application (client and registry) moves to the backup.
+
+### How to run D2
+
+Reset and start the controller:
+sudo service openvswitch-switch start
+pkill -f pox.py
+sudo pkill -f registry
+sudo pkill -f server
+sudo mn -c
+sudo rm -f /tmp/registry_events.log
+cp controller/service_sdn_v2.py pox/ext/
+python3 pox/pox.py service_sdn_v2
+
+In a second terminal start Mininet, then run dump and pingall at the mininet prompt:
+sudo mn --topo single,4 --controller remote
+
+In separate terminals, replace H1PID to H4PID with the numbers shown by dump:
+export P=/path/to/UDP-Service-Discovery
+sudo mnexec -a H1PID python3 $P/registry/registry_v2.py
+sudo mnexec -a H2PID python3 $P/server/server_v2.py 10.0.0.1 video 5001
+sudo mnexec -a H3PID python3 $P/server/server_v2.py 10.0.0.1 video 5002
+sudo mnexec -a H4PID python3 $P/client/client_v2.py 10.0.0.1 video
+
+
+Inspect the switch at the mininet prompt:
+sh ovs-ofctl dump-flows s1 udp
+sh ovs-ofctl dump-ports s1 2
+
+
+### Test scenario: service failure
+
+1. Start the registry, the primary (port 5001) and then the backup (port 5002).
+2. Run the client: it is given the primary and gets SUCCESS.
+3. Stop the primary with Ctrl+C.
+4. Run the client again: it first tries the dead primary, times out, rediscovers and is given the backup (SUCCESS from port 5002).
+5. After 9 seconds the registry prints EXPIRED, and the POX log shows SDN REACTION with the DROP rule. The rule appears in dump-flows as priority 300 with actions drop.
+6. Restart the primary: the POX log shows the DROP rule removed, and the flow disappears.
+
+### Measurement scripts
+tests/measure.py discovery latency with N concurrent clients, appends to results/latency.csv
+tests/probe.py sends N requests straight to a dead server address
+tests/make_report.py builds the charts and tables in results/
+
+
+Example:
+sudo mnexec -a H4PID python3 $P/tests/measure.py 10.0.0.1 video 10 20 dynamic
+sudo mnexec -a H4PID python3 $P/tests/probe.py 10.0.0.2 5001 50
+python3 tests/make_report.py
+
+
+### Results
+
+The baseline is the D1 controller (service_sdn), which forwards traffic but never reacts to a server failure. Every run used 20 requests per client, and no request was lost.
+
+Mean discovery latency (ms):
+
+| Clients | Static baseline | Dynamic controller |
+|---|---|---|
+| 1 | 1.23 | 1.18 |
+| 5 | 0.73 | 1.31 |
+| 10 | 0.84 | 0.93 |
+| 20 | 0.97 | 0.93 |
+
+Failure behaviour (primary server stopped):
+
+| Metric | Static baseline | Dynamic controller |
+|---|---|---|
+| Client recovery time (until SUCCESS from the backup) | 5.18 s | 5.10 s |
+| Packets forwarded to the dead server port during a 50-packet probe | 52 | 1 |
+
+Charts: results/latency_chart.png and results/failure_chart.png. Raw data: results/latency.csv and results/failure_comparison.csv.
+
+What the results show:
+
+- Discovery latency is about the same under both controllers (about 1 ms), because both forward discovery traffic in the same way.
+- Client recovery time is the same, because it is set by the registry timeout (9 seconds) and the client retries, not by the controller.
+- The measurable benefit of the dynamic controller is that traffic to a dead server is dropped at the switch: 1 packet reached the dead server port instead of 52 (the 1 is background traffic such as ARP).
+
+### Limitations and future work
+
+- The controller blocks and unblocks servers. It does not reroute traffic, balance load or prioritise flows.
+- The registry returns the first live server for a service, so there is no load balancing between primary and backup.
+- The registry handles one datagram at a time in a loop, so concurrent clients are served one after another. Measured with up to 20 concurrent clients and no loss.
+- The registry and the controller exchange events through a file in /tmp, which works because both run on the same VM. A real deployment would use a network channel.
+- Recovery time is dominated by the 9 second expiry. A shorter timeout would recover faster but risks false expiry when heartbeats are lost.
+- Measurements are short runs in an emulated network. Differences of a few tenths of a millisecond are noise.
+- The demo UI (ui/gui.py) was built for the D1 files and is not updated for the v2 files.
