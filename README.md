@@ -329,6 +329,50 @@ What the results show:
 - Client recovery time is the same, because it is set by the registry timeout (9 seconds) and the client retries, not by the controller.
 - The measurable benefit of the dynamic controller is that traffic to a dead server is dropped at the switch: 1 packet reached the dead server port instead of 52 (the 1 is background traffic such as ARP).
 
+### D2 screenshots
+
+**Console ready, all nodes up**
+
+![Console ready](docs/screenshots/d2-01-console-ready.png)
+
+**Burst of 10 concurrent clients from h3 and h4**
+
+![Burst clients](docs/screenshots/d2-02-burst-clients.png)
+
+**Primary server blocked (red link, DROP rule count 1)**
+
+![Primary blocked](docs/screenshots/d2-03-primary-blocked.png)
+
+**Priority 300 DROP rule in the switch flow table**
+
+![DROP rule](docs/screenshots/d2-04-drop-rule-flow-table.png)
+
+**POX controller log: SDN REACTION**
+
+![POX reaction](docs/screenshots/d2-05-pox-sdn-reaction.png)
+
+**Registry log: EXPIRED events**
+
+![Registry expired](docs/screenshots/d2-06-registry-expired.png)
+
+**Client fails over to the backup server**
+
+![Client failover](docs/screenshots/d2-07-client-failover.png)
+
+**Primary recovered, DROP rule removed**
+
+![Primary recovered](docs/screenshots/d2-08-primary-recovered.png)
+
+### Live console (demo UI)
+
+A browser console shows the topology, the registry events and the switch flow table, and walks through the demo one step at a time. Start POX, Mininet, the registry and both servers first, then run:
+
+```
+sudo python3 ui/live_ui.py
+```
+
+and open http://localhost:8000. The events, flow table and packet counts are real data from the registry log and `ovs-ofctl`. The labelled dots after a discovery are an animated replay of the exchange.
+
 ## Limitations and future work
 
 - The controller blocks and unblocks servers. It does not reroute traffic, balance load or prioritise flows.
