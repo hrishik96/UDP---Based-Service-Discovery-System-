@@ -11,5 +11,4 @@
 | 7 | Traffic blocked | probe.py 10.0.0.2 5001 50 | tx pkts on the dead server port rises by about 1 (52 under the static controller) |
 | 8 | Recovery | Restart the primary | Registry prints EVENT REGISTERED, POX removes the DROP rule |
 | 9 | Load | measure.py with 1, 5, 10 and 20 clients | 0 lost requests, mean latency about 1 ms |
-| 10 | Invalid request | Send a malformed message to the registry | INVALID_REQUEST (to be run during the rehearsal) |
-
+| 10 | Invalid request | Send a malformed message to the registry | INVALID_REQUEST (passed, checked on the VM with nc) |
