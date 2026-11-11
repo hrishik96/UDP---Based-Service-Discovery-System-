@@ -10,28 +10,27 @@ here = os.path.dirname(os.path.abspath(__file__))
 results = os.path.join(here, "..", "results")
 
 # ---- latency chart from latency.csv (repeated runs are averaged) ----
+# Only the mean latency is plotted. The p95 values stay in latency.csv.
 data = defaultdict(list)
 with open(os.path.join(results, "latency.csv")) as f:
     for row in csv.DictReader(f):
         key = (row["controller"], int(row["clients"]))
-        data[key].append((float(row["mean_ms"]), float(row["p95_ms"])))
+        data[key].append(float(row["mean_ms"]))
 
 clients = sorted({k[1] for k in data})
 width = 0.35
-fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-for ax, idx, title in ((axes[0], 0, "Mean discovery latency (ms)"),
-                       (axes[1], 1, "p95 discovery latency (ms)")):
-    for shift, label in ((-width / 2, "static"), (width / 2, "dynamic")):
-        vals = []
-        for c in clients:
-            runs = data.get((label, c), [])
-            vals.append(sum(r[idx] for r in runs) / len(runs) if runs else 0)
-        ax.bar([i + shift for i in range(len(clients))], vals, width, label=label)
-    ax.set_xticks(range(len(clients)))
-    ax.set_xticklabels([str(c) for c in clients])
-    ax.set_xlabel("Concurrent clients")
-    ax.set_title(title)
-    ax.legend()
+fig, ax = plt.subplots(figsize=(6, 4))
+for shift, label in ((-width / 2, "static"), (width / 2, "dynamic")):
+    vals = []
+    for c in clients:
+        runs = data.get((label, c), [])
+        vals.append(sum(runs) / len(runs) if runs else 0)
+    ax.bar([i + shift for i in range(len(clients))], vals, width, label=label)
+ax.set_xticks(range(len(clients)))
+ax.set_xticklabels([str(c) for c in clients])
+ax.set_xlabel("Concurrent clients")
+ax.set_title("Mean discovery latency (ms)")
+ax.legend()
 plt.tight_layout()
 plt.savefig(os.path.join(results, "latency_chart.png"), dpi=150)
 plt.close()
